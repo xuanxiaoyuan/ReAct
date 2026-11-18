@@ -10,10 +10,10 @@ from .environment import DEFAULT_TASK, MiniHouse
 
 
 def _print_event(kind: str, payload: dict[str, Any]) -> None:
-    if kind == "assistant":
+    if kind == "thought":
+        print(f"Thought: {payload['text']}")
+    elif kind == "assistant":
         message = payload["message"]
-        if message.get("content"):
-            print(f"Thought: {message['content']}")
         for call in message.get("tool_calls", []):
             function = call["function"]
             print(f"Action: {function['name']}({function.get('arguments', '{}')})")

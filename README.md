@@ -6,12 +6,12 @@
 用户任务
    ↓
 LLM(messages, tool schemas)
-   ├─ 普通文本 ───────────────→ 最终回答
+   ├─ 普通文本 ───────────────→ 继续请求工具调用
    └─ function tool call
           ↓
       校验参数 → 执行 Python 函数
           ↓
-      Observation(role=tool)
+      Observation(role=tool)；finish 经环境验收后结束
           └───────────────────→ 下一轮 LLM
 ```
 
@@ -19,9 +19,9 @@ LLM(messages, tool schemas)
 
 | 模式 | 模型在两次动作之间生成什么 | 用途 |
 |---|---|---|
-| `act-only` | 不输出 reasoning，直接选择工具 | 论文中的无推理基线 |
-| `react` | 稀疏且灵活的 Thought，可规划、更新和处理异常 | 标准 ReAct |
-| `react-im` | 每步都输出密集反馈，只描述目标拆解和当前子目标 | 论文的 Inner Monologue 消融 |
+| `act-only` | 直接选择工具；轨迹只有 Action/Observation | 无可见推理基线 |
+| `react` | 工具调用消息带可见 Thought，再执行 Action/Observation | 灵活规划与纠错 |
+| `react-im` | 每步先独立生成反馈式 Thought，再请求 Action/Observation | 密集 Inner Monologue 消融 |
 
 注意：ReAct-IM 里的 IM 是 **Inner Monologue**，不是 memory。这个区别来自 ReAct 论文在
 ALFWorld 上的消融设置。
@@ -33,7 +33,7 @@ src/react_agent/
   agent.py        # 共享的 agent loop
   tools.py        # @function_tool、JSON Schema、参数校验、工具分发
   client.py       # 零依赖 OpenAI-compatible Chat Completions 客户端
-  prompts.py      # 三种策略唯一有意不同的部分
+  prompts.py      # 各模式的完整 few-shot 示例和指令
   environment.py  # 可复现的 ALFWorld 风格本地环境
   cli.py          # 命令行入口与轨迹输出
 tests/            # 不调用外部 API 的 loop / tools 测试
@@ -119,5 +119,11 @@ python -m unittest discover -s tests -v
 原论文用文本格式 `Thought / Action / Observation` 再手工解析动作；这里保留同样的策略差异，
 但动作改用现在常见的 native function calling。这样参数有 JSON Schema 约束，tool call ID 和
 Observation 能可靠配对，也更接近今天实际开发 agent loop 的方式。
+
+运行时也有区别：Act-only 每步只调用一次模型选动作；ReAct 从动作消息读取可见 Thought；
+ReAct-IM 每步先进行一次不提供工具的内心反馈调用，再进行动作调用。`AgentResult.trace`
+依次保存 `thought`、`action`、`observation` 事件。三个模式各有完整的单任务 few-shot
+轨迹（同一目标的两种执行顺序），但这些是本地玩具环境的教学示例，并非论文 ALFWorld
+的专家轨迹，不能据此复现论文成功率。
 
 论文：Yao et al., [ReAct: Synergizing Reasoning and Acting in Language Models](https://arxiv.org/abs/2210.03629)

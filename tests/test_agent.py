@@ -76,16 +76,46 @@ class AgentLoopTests(unittest.TestCase):
     def test_each_mode_selects_its_prompt(self):
         for mode in AgentType:
             with self.subTest(mode=mode):
-                model = ScriptedModel([{"role": "assistant", "content": "answer"}])
+                responses = [{"role": "assistant", "content": "answer"}]
+                if mode is AgentType.REACT_IM:
+                    responses = [{"role": "assistant", "content": "Goal: task. Immediate subgoal: inspect."}, *responses]
+                model = ScriptedModel(responses)
                 result = Agent(model, MiniHouse().registry(), mode, max_steps=1).run("task")
                 prompt = model.seen[0][0][0]["content"]
                 expected = {
                     AgentType.ACT_ONLY: "Mode: Act-only",
-                    AgentType.REACT: "Mode: ReAct (",
+                    AgentType.REACT: "Mode: ReAct.",
                     AgentType.REACT_IM: "Mode: ReAct-IM",
                 }[mode]
                 self.assertIn(expected, prompt)
+                self.assertTrue(any(message.get("tool_calls") for message in model.seen[0][0]))
                 self.assertEqual(result.status, "max_steps_exceeded")
+
+    def test_modes_have_distinct_runtime_traces(self):
+        action = call("real-1", "observe")
+        act_model = ScriptedModel([action])
+        act_result = Agent(act_model, MiniHouse().registry(), "act-only", max_steps=1).run("look")
+        self.assertEqual([event["kind"] for event in act_result.trace], ["action", "observation"])
+        self.assertEqual(len(act_model.seen), 1)
+
+        react_action = call("real-1", "observe")
+        react_action["content"] = "Inspect the room to find a useful route."
+        react_model = ScriptedModel([react_action])
+        react_result = Agent(react_model, MiniHouse().registry(), "react", max_steps=1).run("look")
+        self.assertEqual([event["kind"] for event in react_result.trace],
+                         ["thought", "action", "observation"])
+        self.assertEqual(len(react_model.seen), 1)
+
+        im_model = ScriptedModel([
+            {"role": "assistant", "content": "Goal: inspect. Immediate subgoal: observe room."},
+            action,
+        ])
+        im_result = Agent(im_model, MiniHouse().registry(), "react-im", max_steps=1).run("look")
+        self.assertEqual([event["kind"] for event in im_result.trace],
+                         ["thought", "action", "observation"])
+        self.assertEqual(len(im_model.seen), 2)
+        self.assertEqual(im_model.seen[0][1], [])
+        self.assertIn("Immediate subgoal", im_model.seen[1][0][-1]["content"])
 
     def test_plain_text_is_not_false_success(self):
         model = ScriptedModel([{"role": "assistant", "content": "I am done"}])

@@ -40,10 +40,10 @@ class OpenAICompatibleClient:
         )
 
     def complete(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> dict[str, Any]:
-        payload = json.dumps(
-            {"model": self.model, "messages": messages, "tools": tools, "tool_choice": "auto"},
-            ensure_ascii=False,
-        ).encode("utf-8")
+        request_body: dict[str, Any] = {"model": self.model, "messages": messages, "temperature": 0}
+        if tools:
+            request_body.update({"tools": tools, "tool_choice": "auto"})
+        payload = json.dumps(request_body, ensure_ascii=False).encode("utf-8")
         request = urllib.request.Request(
             f"{self.base_url}/chat/completions",
             data=payload,
