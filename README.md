@@ -127,3 +127,22 @@ ReAct-IM 每步先进行一次不提供工具的内心反馈调用，再进行�
 的专家轨迹，不能据此复现论文成功率。
 
 论文：Yao et al., [ReAct: Synergizing Reasoning and Acting in Language Models](https://arxiv.org/abs/2210.03629)
+
+## 原作者 ALFWorld 小规模实验
+
+`scripts/run_alfworld_sample.py` 读取并列目录 `D:\learn\ReAct-original` 中的原作者
+`alfworld_3prompts.json` 和 `base_config.yaml`，在真实 ALFWorld `valid_unseen` 环境运行
+指定数量的 episode。每条轨迹追加到 `trajs/alfworld_sample.jsonl`（已被 Git 忽略）。
+它保留原 notebook 的文本动作和 `think:` → `OK.` 机制，但将旧 Completion 模型调用
+改为 OpenAI-compatible chat 接口；这属于模型适配，结果不能与原论文数值直接比较。
+
+需要可运行 ALFWorld 的 Python 环境。官方项目主要在 Linux 环境测试；本机 Windows
+Python 3.11 安装时，TextWorld 的 `jericho` 源码构建失败，因此当前尚未完成真实 episode。
+在准备好的 Linux 环境中安装 `alfworld` 和 `pyyaml` 后，设置数据和百炼密钥，运行：
+
+```bash
+export ALFWORLD_DATA=/path/to/ALFWorld-data
+export DASHSCOPE_API_KEY=your-key
+export PYTHONPATH=src
+python scripts/run_alfworld_sample.py --original /path/to/ReAct-original --episodes 5
+```
